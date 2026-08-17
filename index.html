@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>全屏拍照上传</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
+        video { width: 100%; height: 100%; object-fit: cover; display: block; }
+        canvas { display: none; }
+        
+        /* 提示遮罩层样式 */
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            color: white; font-size: 20px; font-family: sans-serif;
+            pointer-events: none; text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            transition: opacity 0.3s;
+        }
+        .hidden { opacity: 0; }
+    </style>
+</head>
+<body>
+
+    <!-- 摄像头实时预览画面 -->
+    <video id="video" autoplay playsinline></video>
+    <!-- 隐藏的画布，用于截取视频帧 -->
+    <canvas id="canvas"></canvas>
+    
+    <!-- 屏幕提示文字 -->
+    <div id="hint" class="overlay">点击屏幕任意处拍照</div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const hint = document.getElementById('hint');
+        let mediaStream = null;
+
+        // 1. 初始化摄像头
+        async function initCamera() {
+            try {
+                // 请求摄像头权限，优先使用后置摄像头
+                mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' } 
+                });
+                video.srcObject = mediaStream;
+            } catch (err) {
+                alert('无法访问摄像头，请检查浏览器权限或确保使用 HTTPS 访问。');
+                console.error('摄像头初始化失败:', err);
+            }
+        }
+
+        // 2. 点击屏幕任意处触发拍照
+        document.body.addEventListener('click', async () => {
+            if (!mediaStream) return; // 摄像头未就绪则不响应
+
+            // 隐藏提示文字
+            hint.classList.add('hidden');
+
+            // 将视频当前帧绘制到 Canvas 上
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // 将 Canvas 内容转换为 Blob 对象
+            canvas.toBlob(async (blob) => {
+                if (!blob) return;
+
+                // 模拟上传到网页（这里打印到控制台，实际项目中可替换为 fetch API 发送到服务器）
+                console.log('照片已生成，准备上传:', blob);
+                alert('拍照成功！照片已生成（实际项目中这里会上传到服务器）。');
+
+                // 3. 保存到手机端相册/下载文件夹
+                saveToPhone(blob);
+                
+                // 3秒后重新显示提示
+                setTimeout(() => hint.classList.remove('hidden'), 3000);
+            }, 'image/jpeg', 0.9); // 格式为 JPEG，质量 0.9
+        });
+
+        // 4. 保存到手机的核心逻辑
+        function saveToPhone(blob) {
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = `photo_${new Date().getTime()}.jpg`; // 以时间戳命名
+            document.body.appendChild(a);
+            a.click(); // 模拟点击下载
+            document.body.removeChild(a);
+            URL.revokeObjectURL(blobUrl); // 释放内存
+        }
+
+        // 页面加载时启动摄像头
+        initCamera();
+        
+        // 页面关闭或隐藏时释放摄像头资源，避免手机发热或卡顿
+        window.addEventListener('beforeunload', () => {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+            }
+        });
+    </script>
+</body>
+</html>
